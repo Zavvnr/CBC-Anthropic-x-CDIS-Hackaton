@@ -50,5 +50,4 @@ plugins/
 # Ignore vscode settings
 .vscode/
 
-# Ignore claude settings
-.claude/
+.vercel

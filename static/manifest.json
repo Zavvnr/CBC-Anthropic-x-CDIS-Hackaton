@@ -1,0 +1,34 @@
+{
+  "name": "Proximity Match",
+  "short_name": "Proximity",
+  "description": "Connect with people nearby who share your interests",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f1117",
+  "theme_color": "#6c63ff",
+  "orientation": "portrait-primary",
+  "categories": ["social", "lifestyle"],
+  "icons": [
+    {
+      "src": "/static/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Check In",
+      "short_name": "Check In",
+      "description": "Set your current location",
+      "url": "/?tab=checkin"
+    },
+    {
+      "name": "Find Matches",
+      "short_name": "Matches",
+      "description": "Find people nearby",
+      "url": "/?tab=matches"
+    }
+  ]
+}

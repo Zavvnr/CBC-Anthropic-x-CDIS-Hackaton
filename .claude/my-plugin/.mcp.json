@@ -1,0 +1,57 @@
+{
+    "mcpServers": {
+        "ticket-tailor": {
+            "type": "https",
+            "url": "https://mcp.tickettailor.ai/mcp"
+        },
+        "linear": {
+            "type": "stdio",
+            "command": "npx",
+            "args": ["-y", "mcp-remote", "https://mcp.linear.app/mcp"]
+        },
+        "huggingface": {
+            "type": "http",
+            "url": "https://huggingface.co/mcp",
+            "headers": {
+                "Authorization": "Bearer YOUR_HF_TOKEN"
+            }
+        },
+        "atlassian": {
+            "type": "http",
+            "url": "https://mcp.atlassian.com/v1/mcp",
+            "headers": {
+                "Authorization": "Bearer YOUR_ATLASSIAN_API_KEY"
+            }
+        },
+        "figma": {
+            "type": "http",
+            "url": "https://mcp.figma.com/mcp"
+        },
+        "paypal": {
+            "type": "stdio",
+            "command": "npx",
+            "args": ["-y", "mcp-remote", "https://mcp.paypal.com/sse"]
+        },
+        "stripe": {
+            "type": "http",
+            "url": "https://mcp.stripe.com"
+        },
+        "supabase": {
+            "type": "stdio",
+            "command": "npx",
+            "args": ["-y", "@supabase/mcp-server-supabase@latest", "--project-ref=YOUR_PROJECT_REF"],
+            "env": {
+                "SUPABASE_ACCESS_TOKEN": "YOUR_SUPABASE_ACCESS_TOKEN"
+            }
+        },
+        "vercel": {
+            "type": "stdio",
+            "command": "npx",
+            "args": ["-y", "mcp-remote", "https://mcp.vercel.com"]
+        },
+        "cloudflare": {
+            "type": "http",
+            "url": "https://mcp.cloudflare.com/mcp"
+        }
+    }
+}

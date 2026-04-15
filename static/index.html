@@ -1,0 +1,1306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#6c63ff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Proximity" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Proximity Match</title>
+
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/static/icon.svg" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --color-bg:          #0f1117;
+      --color-surface:     #1a1d27;
+      --color-surface-2:   #22263a;
+      --color-accent:      #6c63ff;
+      --color-accent-hover:#574fd6;
+      --color-success:     #34d399;
+      --color-warning:     #fbbf24;
+      --color-danger:      #f87171;
+      --color-text:        #e2e8f0;
+      --color-text-muted:  #94a3b8;
+      --color-border:      #2d3248;
+      --radius:            12px;
+      --radius-sm:         8px;
+      --shadow:            0 4px 24px rgba(0,0,0,0.4);
+      --font:              'Segoe UI', system-ui, -apple-system, sans-serif;
+      --nav-height:        60px;
+      --safe-top:          env(safe-area-inset-top, 0px);
+      --safe-bottom:       env(safe-area-inset-bottom, 0px);
+    }
+
+    html, body {
+      font-family: var(--font);
+      background: var(--color-bg);
+      color: var(--color-text);
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+
+    /* ── Top header (visible on desktop + mobile) ─────────────────── */
+    header {
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+      padding: 14px 20px;
+      padding-top: calc(14px + var(--safe-top));
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    header h1 { font-size: 1.25rem; font-weight: 700; color: var(--color-accent); }
+    header p  { font-size: 0.8rem; color: var(--color-text-muted); display: none; }
+    @media (min-width: 640px) {
+      header h1 { font-size: 1.4rem; }
+      header p  { display: block; }
+    }
+
+    /* ── Desktop horizontal nav ───────────────────────────────────── */
+    .top-nav {
+      display: none;
+    }
+    @media (min-width: 640px) {
+      .top-nav {
+        display: flex;
+        gap: 4px;
+        padding: 12px 24px;
+        background: var(--color-surface);
+        border-bottom: 1px solid var(--color-border);
+        overflow-x: auto;
+      }
+      .top-nav button {
+        padding: 8px 18px;
+        border: 1px solid var(--color-border);
+        border-radius: 20px;
+        background: transparent;
+        color: var(--color-text-muted);
+        cursor: pointer;
+        font-size: 0.875rem;
+        white-space: nowrap;
+        transition: all 0.15s;
+      }
+      .top-nav button:hover  { border-color: var(--color-accent); color: var(--color-text); }
+      .top-nav button.active { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
+    }
+
+    /* ── Bottom nav (mobile only) ─────────────────────────────────── */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: calc(var(--nav-height) + var(--safe-bottom));
+      background: var(--color-surface);
+      border-top: 1px solid var(--color-border);
+      display: flex;
+      z-index: 100;
+    }
+    .bottom-nav button {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      background: none;
+      border: none;
+      color: var(--color-text-muted);
+      font-size: 0.65rem;
+      font-weight: 500;
+      cursor: pointer;
+      padding-bottom: var(--safe-bottom);
+      min-height: 44px;
+      transition: color 0.15s;
+    }
+    .bottom-nav button svg { width: 22px; height: 22px; }
+    .bottom-nav button.active { color: var(--color-accent); }
+    @media (min-width: 640px) { .bottom-nav { display: none; } }
+
+    /* ── Main content area ────────────────────────────────────────── */
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 16px 16px calc(var(--nav-height) + var(--safe-bottom) + 16px);
+    }
+    @media (min-width: 640px) {
+      main { padding: 32px 24px 64px; }
+    }
+
+    section { display: none; }
+    section.visible { display: block; }
+
+    /* ── Card ─────────────────────────────────────────────────────── */
+    .card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
+    }
+    @media (min-width: 640px) { .card { padding: 28px; margin-bottom: 20px; } }
+    .card h2 { font-size: 1.05rem; margin-bottom: 18px; color: var(--color-accent); font-weight: 700; }
+
+    /* ── Form elements ────────────────────────────────────────────── */
+    label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--color-text-muted);
+      margin-bottom: 6px;
+      margin-top: 14px;
+    }
+    label:first-of-type { margin-top: 0; }
+
+    input[type="text"], input[type="email"],
+    input[type="password"], input[type="number"], select {
+      width: 100%;
+      padding: 12px 14px;
+      background: var(--color-surface-2);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      color: var(--color-text);
+      font-size: 16px; /* 16px prevents iOS auto-zoom */
+      outline: none;
+      transition: border-color 0.15s;
+      -webkit-appearance: none;
+    }
+    input:focus, select:focus { border-color: var(--color-accent); }
+
+    .input-row { display: flex; gap: 8px; align-items: flex-end; }
+    .input-row input { flex: 1; }
+    .input-row .btn { margin-top: 0; white-space: nowrap; flex-shrink: 0; }
+
+    /* ── Buttons ──────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 22px;
+      min-height: 44px; /* minimum touch target */
+      border: none;
+      border-radius: var(--radius-sm);
+      background: var(--color-accent);
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-top: 18px;
+      width: 100%;
+    }
+    @media (min-width: 640px) { .btn { width: auto; } }
+    .btn:hover { background: var(--color-accent-hover); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--color-accent);
+      color: var(--color-accent);
+    }
+    .btn-outline:hover { background: var(--color-accent); color: #fff; }
+    .btn-sm {
+      padding: 8px 16px;
+      font-size: 0.85rem;
+      min-height: 36px;
+      margin-top: 10px;
+    }
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+    .btn-row .btn { flex: 1; min-width: 140px; margin-top: 0; }
+
+    /* ── Status bars ──────────────────────────────────────────────── */
+    .status-bar {
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      margin-top: 12px;
+      display: none;
+      line-height: 1.4;
+    }
+    .status-bar.show { display: block; }
+    .status-bar.ok   { background: rgba(52,211,153,0.12); border: 1px solid var(--color-success); color: var(--color-success); }
+    .status-bar.err  { background: rgba(248,113,113,0.12); border: 1px solid var(--color-danger);  color: var(--color-danger);  }
+    .status-bar.info { background: rgba(108,99,255,0.12);  border: 1px solid var(--color-accent);  color: var(--color-accent);  }
+
+    /* ── Auth badge ───────────────────────────────────────────────── */
+    #auth-badge {
+      margin-left: auto;
+      font-size: 0.75rem;
+      padding: 6px 12px;
+      border-radius: 20px;
+      background: var(--color-surface-2);
+      border: 1px solid var(--color-border);
+      color: var(--color-text-muted);
+      white-space: nowrap;
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #auth-badge.logged-in { border-color: var(--color-success); color: var(--color-success); }
+
+    /* ── Map ──────────────────────────────────────────────────────── */
+    #checkin-map {
+      height: 280px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--color-border);
+      margin-top: 14px;
+    }
+    @media (min-width: 640px) { #checkin-map { height: 380px; } }
+    .leaflet-container { background: #1a1d27; }
+
+    #search-results-list {
+      background: var(--color-surface-2);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      margin-top: 4px;
+      display: none;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    #search-results-list .result-item {
+      padding: 12px 14px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      border-bottom: 1px solid var(--color-border);
+      transition: background 0.1s;
+    }
+    #search-results-list .result-item:last-child { border-bottom: none; }
+    #search-results-list .result-item:hover { background: var(--color-surface); }
+
+    #selected-location-info {
+      margin-top: 12px;
+      padding: 10px 14px;
+      background: var(--color-surface-2);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      display: none;
+    }
+    #selected-location-info .place-label  { font-weight: 600; color: var(--color-text); }
+    #selected-location-info .coords-label { color: var(--color-text-muted); font-size: 0.78rem; margin-top: 2px; }
+
+    .place-presets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .place-btn {
+      padding: 8px 14px;
+      min-height: 36px;
+      border: 1px solid var(--color-border);
+      border-radius: 20px;
+      background: var(--color-surface-2);
+      color: var(--color-text-muted);
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.15s;
+    }
+    .place-btn:hover, .place-btn.selected { border-color: var(--color-accent); color: var(--color-accent); }
+
+    /* ── Match cards ──────────────────────────────────────────────── */
+    .match-grid { display: grid; gap: 14px; }
+
+    .match-card {
+      background: var(--color-surface-2);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 18px;
+      transition: border-color 0.15s;
+    }
+    .match-card:hover { border-color: var(--color-accent); }
+
+    .match-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .match-card-header h3 { font-size: 1rem; font-weight: 700; }
+
+    .score-badge {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      background: var(--color-accent);
+      color: #fff;
+      white-space: nowrap;
+    }
+
+    .tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+    .tag {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      background: rgba(108,99,255,0.18);
+      color: var(--color-accent);
+      border: 1px solid rgba(108,99,255,0.3);
+    }
+
+    .activity-list {
+      list-style: none;
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .activity-list li {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      background: rgba(52,211,153,0.12);
+      color: var(--color-success);
+      border: 1px solid rgba(52,211,153,0.3);
+    }
+
+    .meta-row {
+      font-size: 0.8rem;
+      color: var(--color-text-muted);
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    /* ── AI insight box ───────────────────────────────────────────── */
+    .ai-insight {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      background: rgba(251,191,36,0.08);
+      border: 1px solid rgba(251,191,36,0.35);
+      color: var(--color-warning);
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+    .ai-insight-label {
+      font-weight: 700;
+      font-size: 0.75rem;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* ── History cards (mobile-friendly) ─────────────────────────── */
+    .history-grid { display: grid; gap: 12px; }
+
+    .history-card {
+      background: var(--color-surface-2);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    .history-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .history-card-header h3 { font-size: 0.95rem; font-weight: 700; }
+    .history-card .meta-row { font-size: 0.78rem; }
+    .history-date {
+      font-size: 0.72rem;
+      color: var(--color-text-muted);
+      margin-top: 6px;
+    }
+
+    /* ── WS indicator ─────────────────────────────────────────────── */
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #ws-indicator {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--color-text-muted);
+      display: inline-block;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    #ws-indicator.connected { background: var(--color-success); }
+    #ws-indicator.error     { background: var(--color-danger); }
+
+    .divider { border: none; border-top: 1px solid var(--color-border); margin: 20px 0; }
+
+    /* ── Section title (mobile page header) ──────────────────────── */
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--color-text);
+      margin-bottom: 14px;
+      padding-top: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- Header                                                                -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<header>
+  <div>
+    <h1>Proximity Match</h1>
+    <p>Connect with people nearby who share your interests</p>
+  </div>
+  <div id="auth-badge">Not logged in</div>
+</header>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- Desktop navigation (≥ 640 px)                                         -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<nav class="top-nav">
+  <button class="active" data-section="section-auth">Register / Login</button>
+  <button data-section="section-checkin">Check In</button>
+  <button data-section="section-matches">Find Matches</button>
+  <button data-section="section-history">Match History</button>
+</nav>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- Main content                                                           -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<main>
+
+  <!-- ═══════════════════════════════════ -->
+  <!-- SECTION 1: Register / Login        -->
+  <!-- ═══════════════════════════════════ -->
+  <section id="section-auth" class="visible">
+
+    <div class="card">
+      <h2>Create an Account</h2>
+
+      <label for="reg-name">Your Name</label>
+      <input type="text" id="reg-name" placeholder="e.g. Keshav" maxlength="100"
+             autocomplete="name" autocapitalize="words" />
+
+      <label for="reg-email">Email</label>
+      <input type="email" id="reg-email" placeholder="you@example.com"
+             autocomplete="email" inputmode="email" />
+
+      <label for="reg-password">Password <span style="color:var(--color-text-muted)">(min 8 characters)</span></label>
+      <input type="password" id="reg-password" placeholder="••••••••"
+             autocomplete="new-password" />
+
+      <label for="reg-interests">Interests <span style="color:var(--color-text-muted)">(comma-separated)</span></label>
+      <input type="text" id="reg-interests" placeholder="gym, music, gaming, cs"
+             autocomplete="off" />
+
+      <button class="btn" id="btn-register">Create Account</button>
+      <div class="status-bar" id="reg-status"></div>
+    </div>
+
+    <hr class="divider" />
+
+    <div class="card">
+      <h2>Log In</h2>
+
+      <label for="login-email">Email</label>
+      <input type="email" id="login-email" placeholder="you@example.com"
+             autocomplete="email" inputmode="email" />
+
+      <label for="login-password">Password</label>
+      <input type="password" id="login-password" placeholder="••••••••"
+             autocomplete="current-password" />
+
+      <button class="btn btn-outline" id="btn-login">Log In</button>
+      <div class="status-bar" id="login-status"></div>
+    </div>
+
+  </section>
+
+  <!-- ═══════════════════════════════════ -->
+  <!-- SECTION 2: Check In               -->
+  <!-- ═══════════════════════════════════ -->
+  <section id="section-checkin">
+    <div class="card">
+      <h2>Check In — Set Your Location</h2>
+
+      <p style="font-size:0.85rem;color:var(--color-text-muted);margin-bottom:14px;">
+        Search for a place, use GPS, click the map, or pick a preset.
+        Your location is only used for matching.
+      </p>
+
+      <!-- GPS button -->
+      <button class="btn btn-outline btn-sm" id="btn-gps" style="margin-top:0;width:100%;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/>
+        </svg>
+        Use My Location (GPS)
+      </button>
+      <div class="status-bar" id="gps-status"></div>
+
+      <label for="place-search" style="margin-top:16px;">Or search for a place</label>
+      <div class="input-row">
+        <input type="text" id="place-search" placeholder="e.g. NUS Library, Orchard Road…"
+               autocomplete="off" />
+        <button class="btn" id="btn-search-place" style="margin-top:0;">Search</button>
+      </div>
+      <div id="search-results-list"></div>
+
+      <label>Quick Presets</label>
+      <div class="place-presets">
+        <button class="place-btn" data-lat="1.3048" data-lng="103.8318" data-name="Gym">Gym</button>
+        <button class="place-btn" data-lat="1.2966" data-lng="103.7764" data-name="Library">Library</button>
+        <button class="place-btn" data-lat="1.3000" data-lng="103.8000" data-name="Cafe">Cafe</button>
+        <button class="place-btn" data-lat="1.3072" data-lng="103.8253" data-name="Park">Park</button>
+        <button class="place-btn" data-lat="1.2966" data-lng="103.7764" data-name="Campus">Campus</button>
+      </div>
+
+      <div id="checkin-map"></div>
+
+      <div id="selected-location-info">
+        <div class="place-label" id="selected-place-label">—</div>
+        <div class="coords-label" id="selected-coords-label"></div>
+      </div>
+
+      <button class="btn" id="btn-checkin">Check In Here</button>
+      <div class="status-bar" id="ci-status"></div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════ -->
+  <!-- SECTION 3: Find Matches            -->
+  <!-- ═══════════════════════════════════ -->
+  <section id="section-matches">
+    <div class="card">
+      <h2>
+        Find Matches
+        <span id="ws-indicator" title="WebSocket: real-time updates"></span>
+      </h2>
+
+      <label for="match-radius">Search Radius (km)</label>
+      <input type="number" id="match-radius" value="0.5" step="0.1" min="0.1" max="50"
+             inputmode="decimal" />
+
+      <button class="btn" id="btn-find-matches">Find Matches</button>
+      <div class="status-bar" id="match-status"></div>
+    </div>
+
+    <div id="match-results" class="match-grid"></div>
+  </section>
+
+  <!-- ═══════════════════════════════════ -->
+  <!-- SECTION 4: Match History           -->
+  <!-- ═══════════════════════════════════ -->
+  <section id="section-history">
+    <div class="card">
+      <h2>Match History</h2>
+      <button class="btn btn-outline" id="btn-load-history">Load History</button>
+      <div class="status-bar" id="history-status"></div>
+    </div>
+    <div class="history-grid" id="history-grid"></div>
+  </section>
+
+</main>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- Mobile bottom navigation                                               -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<nav class="bottom-nav">
+  <button class="active" data-section="section-auth">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+    </svg>
+    Account
+  </button>
+  <button data-section="section-checkin">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+    </svg>
+    Check In
+  </button>
+  <button data-section="section-matches">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    Matches
+  </button>
+  <button data-section="section-history">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="12 8 12 12 14 14"/><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/>
+    </svg>
+    History
+  </button>
+</nav>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+// ============================================================================
+// State
+// ============================================================================
+const state = {
+  sessionToken: null,
+  userId:       null,
+  userName:     null,
+  wsSocket:     null,
+};
+
+const API_BASE = '';
+
+// Map state
+let checkinMap      = null;
+let checkinMarker   = null;
+let selectedLat     = null;
+let selectedLng     = null;
+let selectedPlaceName = null;
+
+
+// ============================================================================
+// Utility helpers
+// ============================================================================
+
+function showStatus(elementId, message, type = 'info') {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  el.textContent = message;
+  el.className = `status-bar show ${type}`;
+}
+
+function clearStatus(elementId) {
+  const el = document.getElementById(elementId);
+  if (el) el.className = 'status-bar';
+}
+
+async function apiFetch(path, method = 'GET', body = null) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (state.sessionToken) headers['X-Session-Token'] = state.sessionToken;
+
+  const options = { method, headers };
+  if (body !== null) options.body = JSON.stringify(body);
+
+  const response = await fetch(`${API_BASE}${path}`, options);
+  const data = await response.json().catch(() => ({ detail: response.statusText }));
+
+  if (!response.ok) {
+    const detail = typeof data.detail === 'string'
+      ? data.detail
+      : JSON.stringify(data.detail);
+    throw new Error(detail || `HTTP ${response.status}`);
+  }
+  return data;
+}
+
+function formatDistance(km) {
+  return km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(2)} km`;
+}
+
+function formatDate(isoString) {
+  try { return new Date(isoString).toLocaleString(); } catch { return isoString; }
+}
+
+
+// ============================================================================
+// Auth badge
+// ============================================================================
+
+function updateAuthBadge() {
+  const badge = document.getElementById('auth-badge');
+  if (state.userId) {
+    badge.textContent = state.userName || `User #${state.userId}`;
+    badge.className = 'logged-in';
+  } else {
+    badge.textContent = 'Not logged in';
+    badge.className = '';
+  }
+}
+
+function applyAuthResponse(data) {
+  state.sessionToken = data.session_token;
+  state.userId       = data.user_id;
+  state.userName     = data.name;
+  updateAuthBadge();
+  connectWebSocket();
+}
+
+
+// ============================================================================
+// Navigation — shared logic for both top-nav and bottom-nav buttons
+// ============================================================================
+
+function activateSection(sectionId) {
+  // Update all nav buttons (top + bottom) to reflect the active section.
+  document.querySelectorAll('.top-nav button, .bottom-nav button').forEach(b => {
+    b.classList.toggle('active', b.dataset.section === sectionId);
+  });
+
+  // Show the matching section.
+  document.querySelectorAll('main section').forEach(s => {
+    s.classList.toggle('visible', s.id === sectionId);
+  });
+
+  // Lazily init the Leaflet map when the check-in section is first revealed.
+  if (sectionId === 'section-checkin') initCheckinMap();
+}
+
+document.querySelectorAll('.top-nav button, .bottom-nav button').forEach(btn => {
+  btn.addEventListener('click', () => activateSection(btn.dataset.section));
+});
+
+
+// ============================================================================
+// Section 1: Register
+// ============================================================================
+
+document.getElementById('btn-register').addEventListener('click', async () => {
+  const name         = document.getElementById('reg-name').value.trim();
+  const email        = document.getElementById('reg-email').value.trim();
+  const password     = document.getElementById('reg-password').value;
+  const interestsRaw = document.getElementById('reg-interests').value.trim();
+
+  if (!name || !email || !password || !interestsRaw) {
+    showStatus('reg-status', 'Please fill in all fields.', 'err');
+    return;
+  }
+
+  const interests = interestsRaw.split(',').map(t => t.trim()).filter(Boolean);
+  if (interests.length === 0) {
+    showStatus('reg-status', 'Please enter at least one interest tag.', 'err');
+    return;
+  }
+
+  const btn = document.getElementById('btn-register');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Creating account…';
+
+  try {
+    const data = await apiFetch('/register', 'POST', { name, email, password, interests });
+    applyAuthResponse(data);
+    showStatus('reg-status', `Welcome, ${data.name}! You are now logged in.`, 'ok');
+    document.getElementById('login-email').value = email;
+  } catch (err) {
+    showStatus('reg-status', `Registration failed: ${err.message}`, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Create Account';
+  }
+});
+
+
+// ============================================================================
+// Section 1: Login
+// ============================================================================
+
+document.getElementById('btn-login').addEventListener('click', async () => {
+  const email    = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+
+  if (!email || !password) {
+    showStatus('login-status', 'Please enter your email and password.', 'err');
+    return;
+  }
+
+  const btn = document.getElementById('btn-login');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Logging in…';
+
+  try {
+    const data = await apiFetch('/login', 'POST', { email, password });
+    applyAuthResponse(data);
+    showStatus('login-status', `Welcome back, ${data.name}!`, 'ok');
+  } catch (err) {
+    showStatus('login-status', `Login failed: ${err.message}`, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Log In';
+  }
+});
+
+
+// ============================================================================
+// Section 2: Map + place search
+// ============================================================================
+
+function initCheckinMap() {
+  if (checkinMap) return;
+
+  checkinMap = L.map('checkin-map').setView([1.3048, 103.8318], 14);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19,
+  }).addTo(checkinMap);
+
+  checkinMap.on('click', async (e) => {
+    const { lat, lng } = e.latlng;
+    placeMarker(lat, lng);
+    const name = await reverseGeocode(lat, lng);
+    setSelectedLocation(lat, lng, name);
+  });
+}
+
+function placeMarker(lat, lng) {
+  if (checkinMarker) {
+    checkinMarker.setLatLng([lat, lng]);
+  } else {
+    checkinMarker = L.marker([lat, lng]).addTo(checkinMap);
+  }
+  checkinMap.setView([lat, lng], 16);
+}
+
+function setSelectedLocation(lat, lng, placeName) {
+  selectedLat       = lat;
+  selectedLng       = lng;
+  selectedPlaceName = placeName || `(${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+
+  document.getElementById('selected-place-label').textContent  = selectedPlaceName;
+  document.getElementById('selected-coords-label').textContent =
+    `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  document.getElementById('selected-location-info').style.display = 'block';
+}
+
+async function reverseGeocode(lat, lng) {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`;
+    const resp = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+    const data = await resp.json();
+    return (data.display_name || '').slice(0, 200) || `(${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+  } catch {
+    return `(${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+  }
+}
+
+async function forwardGeocode(query) {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5`;
+  const resp = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+  return resp.json();
+}
+
+// GPS button
+document.getElementById('btn-gps').addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    showStatus('gps-status', 'Geolocation is not supported by your browser.', 'err');
+    return;
+  }
+
+  const btn = document.getElementById('btn-gps');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Getting location…';
+  clearStatus('gps-status');
+
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      initCheckinMap();
+      placeMarker(lat, lng);
+      const name = await reverseGeocode(lat, lng);
+      setSelectedLocation(lat, lng, name);
+      document.querySelectorAll('.place-btn').forEach(b => b.classList.remove('selected'));
+      showStatus('gps-status', 'Location detected!', 'ok');
+      btn.disabled = false;
+      btn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/>
+        </svg>
+        Use My Location (GPS)`;
+    },
+    (err) => {
+      showStatus('gps-status', `GPS error: ${err.message}`, 'err');
+      btn.disabled = false;
+      btn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/>
+        </svg>
+        Use My Location (GPS)`;
+    },
+    { enableHighAccuracy: true, timeout: 10000 },
+  );
+});
+
+// Search button
+document.getElementById('btn-search-place').addEventListener('click', async () => {
+  const query = document.getElementById('place-search').value.trim();
+  if (!query) return;
+
+  const btn = document.getElementById('btn-search-place');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+
+  try {
+    const results = await forwardGeocode(query);
+    renderSearchResults(results);
+  } catch {
+    /* ignore — user can still click the map */
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Search';
+  }
+});
+
+document.getElementById('place-search').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('btn-search-place').click();
+});
+
+function renderSearchResults(results) {
+  const list = document.getElementById('search-results-list');
+  list.innerHTML = '';
+
+  if (!results || results.length === 0) {
+    list.style.display = 'none';
+    return;
+  }
+
+  results.forEach(r => {
+    const item = document.createElement('div');
+    item.className = 'result-item';
+    item.textContent = r.display_name;
+    item.addEventListener('click', () => {
+      const lat = parseFloat(r.lat);
+      const lng = parseFloat(r.lon);
+      initCheckinMap();
+      placeMarker(lat, lng);
+      setSelectedLocation(lat, lng, r.display_name.slice(0, 200));
+      list.style.display = 'none';
+      document.getElementById('place-search').value = r.display_name.slice(0, 60);
+      document.querySelectorAll('.place-btn').forEach(b => b.classList.remove('selected'));
+    });
+    list.appendChild(item);
+  });
+
+  list.style.display = 'block';
+}
+
+// Preset buttons
+document.querySelectorAll('.place-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.place-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    const lat  = parseFloat(btn.dataset.lat);
+    const lng  = parseFloat(btn.dataset.lng);
+    const name = btn.dataset.name;
+    initCheckinMap();
+    placeMarker(lat, lng);
+    setSelectedLocation(lat, lng, name);
+    document.getElementById('search-results-list').style.display = 'none';
+  });
+});
+
+// Check-in submit
+document.getElementById('btn-checkin').addEventListener('click', async () => {
+  if (!state.sessionToken) {
+    showStatus('ci-status', 'Please log in first.', 'err');
+    return;
+  }
+  if (selectedLat === null || selectedLng === null) {
+    showStatus('ci-status', 'Please select a location on the map first.', 'err');
+    return;
+  }
+
+  const btn = document.getElementById('btn-checkin');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Checking in…';
+
+  try {
+    const data = await apiFetch('/checkin', 'POST', {
+      latitude:   selectedLat,
+      longitude:  selectedLng,
+      place_name: selectedPlaceName || null,
+    });
+    showStatus(
+      'ci-status',
+      `Checked in at ${data.place_name || `(${data.latitude.toFixed(4)}, ${data.longitude.toFixed(4)})`} — ${formatDate(data.checked_in_at)}`,
+      'ok',
+    );
+  } catch (err) {
+    showStatus('ci-status', `Check-in failed: ${err.message}`, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Check In Here';
+  }
+});
+
+
+// ============================================================================
+// Section 3: Find Matches
+// ============================================================================
+
+document.getElementById('btn-find-matches').addEventListener('click', async () => {
+  if (!state.sessionToken) {
+    showStatus('match-status', 'Please log in first.', 'err');
+    return;
+  }
+
+  const radiusKm = parseFloat(document.getElementById('match-radius').value);
+  if (isNaN(radiusKm) || radiusKm <= 0) {
+    showStatus('match-status', 'Please enter a valid radius.', 'err');
+    return;
+  }
+
+  const btn = document.getElementById('btn-find-matches');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Searching…';
+  clearStatus('match-status');
+
+  try {
+    const data = await apiFetch(`/matches?radius_km=${radiusKm}`, 'GET');
+    renderMatchCards(data);
+    if (data.matches.length === 0) {
+      showStatus('match-status', 'No matches found nearby. Try checking in first or increasing the radius.', 'info');
+    } else {
+      showStatus(
+        'match-status',
+        `Found ${data.matches.length} match${data.matches.length === 1 ? '' : 'es'}${data.cached ? ' (cached)' : ''}.`,
+        'ok',
+      );
+    }
+  } catch (err) {
+    showStatus('match-status', `Search failed: ${err.message}`, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Find Matches';
+  }
+});
+
+function renderMatchCards(data) {
+  const grid = document.getElementById('match-results');
+  grid.innerHTML = '';
+
+  data.matches.forEach(match => {
+    const card = document.createElement('div');
+    card.className = 'match-card';
+
+    // Header: name + score badge
+    const header = document.createElement('div');
+    header.className = 'match-card-header';
+    const nameEl = document.createElement('h3');
+    nameEl.textContent = match.name;
+    const scoreBadge = document.createElement('span');
+    scoreBadge.className = 'score-badge';
+    scoreBadge.textContent = `Score: ${match.score.toFixed(1)}`;
+    header.appendChild(nameEl);
+    header.appendChild(scoreBadge);
+    card.appendChild(header);
+
+    // Distance + shared interest count
+    const metaRow = document.createElement('div');
+    metaRow.className = 'meta-row';
+    const distSpan = document.createElement('span');
+    distSpan.textContent = `📍 ${formatDistance(match.distance_km)} away`;
+    const countSpan = document.createElement('span');
+    countSpan.textContent = `${match.shared_interests.length} shared interest${match.shared_interests.length === 1 ? '' : 's'}`;
+    metaRow.appendChild(distSpan);
+    metaRow.appendChild(countSpan);
+    card.appendChild(metaRow);
+
+    // Shared interest tags
+    if (match.shared_interests.length > 0) {
+      const interestLabel = document.createElement('label');
+      interestLabel.textContent = 'Shared interests:';
+      interestLabel.style.marginTop = '10px';
+      card.appendChild(interestLabel);
+
+      const tagList = document.createElement('div');
+      tagList.className = 'tag-list';
+      match.shared_interests.forEach(tag => {
+        const tagEl = document.createElement('span');
+        tagEl.className = 'tag';
+        tagEl.textContent = tag;
+        tagList.appendChild(tagEl);
+      });
+      card.appendChild(tagList);
+    }
+
+    // Suggested activities
+    if (match.suggested_activities && match.suggested_activities.length > 0) {
+      const actLabel = document.createElement('label');
+      actLabel.textContent = 'Suggested activities:';
+      actLabel.style.marginTop = '12px';
+      card.appendChild(actLabel);
+
+      const actList = document.createElement('ul');
+      actList.className = 'activity-list';
+      match.suggested_activities.forEach(activity => {
+        const li = document.createElement('li');
+        li.textContent = activity;
+        actList.appendChild(li);
+      });
+      card.appendChild(actList);
+    }
+
+    // AI insight (Claude-generated)
+    if (match.ai_insight) {
+      const insightBox = document.createElement('div');
+      insightBox.className = 'ai-insight';
+
+      const insightLabel = document.createElement('div');
+      insightLabel.className = 'ai-insight-label';
+      insightLabel.textContent = '✨ Claude Insight';
+      insightBox.appendChild(insightLabel);
+
+      const insightText = document.createElement('div');
+      insightText.textContent = match.ai_insight;
+      insightBox.appendChild(insightText);
+
+      card.appendChild(insightBox);
+    }
+
+    grid.appendChild(card);
+  });
+}
+
+
+// ============================================================================
+// Section 4: Match History
+// ============================================================================
+
+document.getElementById('btn-load-history').addEventListener('click', async () => {
+  if (!state.sessionToken) {
+    showStatus('history-status', 'Please log in first.', 'err');
+    return;
+  }
+
+  const btn = document.getElementById('btn-load-history');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Loading…';
+  clearStatus('history-status');
+
+  try {
+    const data = await apiFetch('/history', 'GET');
+    renderHistoryCards(data);
+    showStatus('history-status', `${data.history.length} record${data.history.length === 1 ? '' : 's'} found.`, 'ok');
+  } catch (err) {
+    showStatus('history-status', `Failed to load history: ${err.message}`, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Load History';
+  }
+});
+
+function renderHistoryCards(data) {
+  const grid = document.getElementById('history-grid');
+  grid.innerHTML = '';
+
+  if (data.history.length === 0) return;
+
+  data.history.forEach(entry => {
+    const card = document.createElement('div');
+    card.className = 'history-card';
+
+    const header = document.createElement('div');
+    header.className = 'history-card-header';
+    const nameEl = document.createElement('h3');
+    nameEl.textContent = entry.matched_user_name;
+    const scoreBadge = document.createElement('span');
+    scoreBadge.className = 'score-badge';
+    scoreBadge.textContent = `${entry.score.toFixed(1)}`;
+    header.appendChild(nameEl);
+    header.appendChild(scoreBadge);
+    card.appendChild(header);
+
+    const metaRow = document.createElement('div');
+    metaRow.className = 'meta-row';
+    const distSpan = document.createElement('span');
+    distSpan.textContent = `📍 ${formatDistance(entry.distance_km)}`;
+    metaRow.appendChild(distSpan);
+    card.appendChild(metaRow);
+
+    if (entry.shared_interests.length > 0) {
+      const tagList = document.createElement('div');
+      tagList.className = 'tag-list';
+      entry.shared_interests.forEach(tag => {
+        const tagEl = document.createElement('span');
+        tagEl.className = 'tag';
+        tagEl.textContent = tag;
+        tagList.appendChild(tagEl);
+      });
+      card.appendChild(tagList);
+    }
+
+    const dateEl = document.createElement('div');
+    dateEl.className = 'history-date';
+    dateEl.textContent = formatDate(entry.matched_at);
+    card.appendChild(dateEl);
+
+    grid.appendChild(card);
+  });
+}
+
+
+// ============================================================================
+// WebSocket — real-time match refresh
+// ============================================================================
+
+function connectWebSocket() {
+  if (!state.userId || !state.sessionToken) return;
+  if (state.wsSocket) state.wsSocket.close();
+
+  const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+  const url = `${protocol}://${location.host}/ws/${state.userId}?session_token=${encodeURIComponent(state.sessionToken)}`;
+  const ws  = new WebSocket(url);
+  const indicator = document.getElementById('ws-indicator');
+
+  ws.onopen = () => {
+    indicator.className = 'connected';
+    indicator.title = 'WebSocket: connected — real-time updates active';
+    ws._pingInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) ws.send('ping');
+    }, 25000);
+  };
+
+  ws.onmessage = (event) => {
+    if (event.data === 'pong') return;
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.event === 'new_checkin') {
+        const matchSection = document.getElementById('section-matches');
+        if (matchSection.classList.contains('visible')) {
+          document.getElementById('btn-find-matches').click();
+        }
+      }
+    } catch { /* ignore malformed frames */ }
+  };
+
+  ws.onerror = () => {
+    indicator.className = 'error';
+    indicator.title = 'WebSocket: connection error';
+  };
+
+  ws.onclose = () => {
+    indicator.className = '';
+    indicator.title = 'WebSocket: disconnected';
+    clearInterval(ws._pingInterval);
+    // Reconnect after 5 s, but only if the user is still logged in.
+    setTimeout(() => { if (state.userId) connectWebSocket(); }, 5000);
+  };
+
+  state.wsSocket = ws;
+}
+
+
+// ============================================================================
+// Service Worker registration
+// ============================================================================
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      .catch(() => { /* SW registration is best-effort; silently ignore on non-HTTPS or Vercel */ });
+  });
+}
+</script>
+</body>
+</html>

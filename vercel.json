@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/sw.js",
+      "dest": "/static/sw.js",
+      "headers": {
+        "Service-Worker-Allowed": "/",
+        "Content-Type": "application/javascript"
+      }
+    },
+    {
+      "src": "/manifest.json",
+      "dest": "/static/manifest.json",
+      "headers": {
+        "Content-Type": "application/manifest+json"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/api/index.py"
+    }
+  ],
+  "env": {
+    "DATABASE_URL": "/tmp/proximity_match.db"
+  }
+}

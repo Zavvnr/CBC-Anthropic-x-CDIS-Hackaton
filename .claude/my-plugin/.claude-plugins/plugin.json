@@ -1,0 +1,97 @@
+{
+  "name": "CBC-Anthropic-x-CDIS-Hackaton",
+  "description": "Claude Code project manifest — inventories all MCP servers, skills, subagents, rules, and scripts installed in this project.",
+  "version": "1.0.0",
+
+  "mcp_servers": {
+    "description": "External service connections available to all agents.",
+    "$source": "../../../../.mcp.json",
+    "notes": "Auth tokens are placeholders — set real values as environment variables, never in source files."
+  },
+
+  "skills": {
+    "description": "Slash-command skills available in this project. Located in .claude/skills/.",
+    "items": [
+      {
+        "name": "code-formatting",
+        "path": ".claude/skills/code-formatting/SKILL.md",
+        "description": "Cleans code with appropriate formatting, structure, and comments. Uses naming conventions, avoids complexity, and focuses on readability.",
+        "template": ".claude/skills/code-formatting/template.md",
+        "example": ".claude/skills/code-formatting/examples/sample.md"
+      }
+    ]
+  },
+
+  "subagents": {
+    "description": "Specialised agents that handle distinct phases of the development workflow. Located in .claude/agents/subagents/.",
+    "workflow": "agent-coordinator → code-architect → code-engineer → code-reviewer",
+    "items": [
+      {
+        "name": "agent-coordinator",
+        "path": ".claude/agents/subagents/agent-coordinator.md",
+        "role": "Orchestrates the full development pipeline. Delegates to other subagents in order, tracks progress, surfaces blockers, and delivers the final output."
+      },
+      {
+        "name": "code-architect",
+        "path": ".claude/agents/subagents/code-architect.md",
+        "role": "Designs code structure, UI/UX, application capabilities, and acceptance criteria. Produces a specification — no implementation code."
+      },
+      {
+        "name": "code-engineer",
+        "path": ".claude/agents/subagents/code-engineer.md",
+        "role": "Implements code from the architect's specification. Responsible for production-ready code, unit/integration tests, and the OWASP security checklist."
+      },
+      {
+        "name": "code-reviewer",
+        "path": ".claude/agents/subagents/code-reviewer.md",
+        "role": "Reviews code against the spec and all rules. Returns APPROVED, CHANGES REQUIRED, or BLOCKED. Last gate before shipping."
+      }
+    ]
+  },
+
+  "rules": {
+    "description": "Behavioural rules applied to all agents in priority order. Located in .claude/rules/.",
+    "priority_order": [
+      {
+        "priority": 1,
+        "name": "code-style",
+        "path": ".claude/rules/code-style.md",
+        "description": "Explanation format: analogy → comments → walkthrough → highlight. Applies to all code explanations."
+      },
+      {
+        "priority": 2,
+        "name": "security",
+        "path": ".claude/rules/security.md",
+        "description": "MCP/API permission gating, mandatory caching with TTLs, mandatory rate limiting, and OWASP Top 10 review on every code change."
+      },
+      {
+        "priority": 3,
+        "name": "testing",
+        "path": ".claude/rules/testing.md",
+        "description": "Unit, integration, UAT, performance (100/1k/100k tiers), security, and E2E testing required for every feature."
+      },
+      {
+        "priority": 4,
+        "name": "preferences",
+        "path": ".claude/rules/preferences.md",
+        "description": "Neat code, readable variable names, simple comments, best algorithms, and scalable design. Superseded by the three rules above."
+      }
+    ]
+  },
+
+  "scripts": {
+    "description": "Executable scripts Claude can run directly. Located in .claude/skills/scripts/.",
+    "items": [
+      {
+        "name": "validate",
+        "path": ".claude/skills/scripts/validate.sh",
+        "command": "bash .claude/skills/scripts/validate.sh [file_or_directory]",
+        "description": "Validates source files against code-formatting standards. Checks file headers, magic numbers, function docs, indentation, line length, and debug statements.",
+        "exit_codes": {
+          "0": "All checks passed",
+          "1": "One or more checks failed"
+        }
+      }
+    ]
+  }
+}
